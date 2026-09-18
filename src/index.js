@@ -1,48 +1,78 @@
+import { DurableObject } from "cloudflare:workers";
+
+
 export default {
   async fetch(request, env) {
+
     const url = new URL(request.url);
 
     if (url.pathname === "/ws") {
-      if (request.headers.get("Upgrade") !== "websocket") {
-        return new Response("WebSocket connection required.", {
-          status: 426
-        });
+
+      if (
+        request.headers.get("Upgrade") !==
+        "websocket"
+      ) {
+        return new Response(
+          "WebSocket connection required.",
+          {
+            status: 426
+          }
+        );
       }
 
-      const id = env.CHAT_ROOM.idFromName("hora-tv-global-chat");
-      const room = env.CHAT_ROOM.get(id);
+      const id =
+        env.CHAT_ROOM.idFromName(
+          "hora-tv-global-chat"
+        );
+
+      const room =
+        env.CHAT_ROOM.get(id);
 
       return room.fetch(request);
     }
 
+
     if (url.pathname === "/") {
+
       return new Response(
         "HORA TV Chat Worker is running.",
         {
           headers: {
-            "Content-Type": "text/plain"
+            "Content-Type":
+              "text/plain"
           }
         }
       );
+
     }
 
-    return new Response("Not found.", {
-      status: 404
-    });
+
+    return new Response(
+      "Not found.",
+      {
+        status: 404
+      }
+    );
+
   }
 };
 
 
-export class ChatRoom extends DurableObject {
+export class ChatRoom
+  extends DurableObject {
 
   constructor(ctx, env) {
+
     super(ctx, env);
 
     this.ctx = ctx;
     this.env = env;
 
     this.sessions = new Map();
-    this.lastMessageTime = new Map();
+
+    this.lastMessageTime =
+      new Map();
+
   }
 
 
@@ -52,50 +82,66 @@ export class ChatRoom extends DurableObject {
       request.headers.get("Upgrade") !==
       "websocket"
     ) {
+
       return new Response(
         "WebSocket connection required.",
         {
           status: 426
         }
       );
+
     }
 
-    const pair = new WebSocketPair();
 
-    const client = pair[0];
-    const server = pair[1];
+    const pair =
+      new WebSocketPair();
+
+    const client =
+      pair[0];
+
+    const server =
+      pair[1];
+
 
     server.accept();
 
+
     const sessionId =
       crypto.randomUUID();
+
 
     this.sessions.set(
       sessionId,
       server
     );
 
+
     server.send(
       JSON.stringify({
         type: "welcome",
-        message: "Connected to HORA TV Live Chat.",
-        online: this.sessions.size
+        message:
+          "Connected to HORA TV Live Chat.",
+        online:
+          this.sessions.size
       })
     );
+
 
     server.send(
       JSON.stringify({
         type: "history",
-        messages: await this.getMessages()
+        messages:
+          await this.getMessages()
       })
     );
 
-    this.broadcast(
-      {
-        type: "online",
-        online: this.sessions.size
-      }
-    );
+
+    this.broadcast({
+      type: "online",
+      online:
+        this.sessions.size
+    });
+
 
     server.addEventListener(
       "message",
@@ -104,7 +150,10 @@ export class ChatRoom extends DurableObject {
         try {
 
           const data =
-            JSON.parse(event.data);
+            JSON.parse(
+              event.data
+            );
+
 
           await this.handleMessage(
             sessionId,
@@ -114,6 +163,11 @@ export class ChatRoom extends DurableObject {
 
         }
         catch (error) {
+
+          console.error(
+            error
+          );
+
 
           server.send(
             JSON.stringify({
@@ -137,12 +191,16 @@ export class ChatRoom extends DurableObject {
           sessionId
         );
 
-        this.broadcast(
-          {
-            type: "online",
-            online: this.sessions.size
-          }
+        this.lastMessageTime.delete(
+          sessionId
         );
+
+
+        this.broadcast({
+          type: "online",
+          online:
+            this.sessions.size
+        });
 
       }
     );
@@ -167,6 +225,7 @@ export class ChatRoom extends DurableObject {
         webSocket: client
       }
     );
+
   }
 
 
@@ -189,6 +248,7 @@ export class ChatRoom extends DurableObject {
         20
       );
 
+
     const message =
       this.cleanText(
         data.message,
@@ -207,6 +267,7 @@ export class ChatRoom extends DurableObject {
       );
 
       return;
+
     }
 
 
@@ -221,11 +282,13 @@ export class ChatRoom extends DurableObject {
       );
 
       return;
+
     }
 
 
     const now =
       Date.now();
+
 
     const last =
       this.lastMessageTime.get(
@@ -247,6 +310,7 @@ export class ChatRoom extends DurableObject {
       );
 
       return;
+
     }
 
 
@@ -261,7 +325,8 @@ export class ChatRoom extends DurableObject {
 
     if (
       data.replyTo &&
-      typeof data.replyTo === "object"
+      typeof data.replyTo ===
+        "object"
     ) {
 
       replyTo = {
@@ -300,7 +365,8 @@ export class ChatRoom extends DurableObject {
 
       replyTo,
 
-      time: now
+      time:
+        now
 
     };
 
@@ -310,12 +376,15 @@ export class ChatRoom extends DurableObject {
     );
 
 
-    this.broadcast(
-      {
-        type: "message",
-        message: chatMessage
-      }
-    );
+    this.broadcast({
+
+      type:
+        "message",
+
+      message:
+        chatMessage
+
+    });
 
   }
 
@@ -326,9 +395,12 @@ export class ChatRoom extends DurableObject {
   ) {
 
     if (
-      typeof value !== "string"
+      typeof value !==
+      "string"
     ) {
+
       return "";
+
     }
 
 
@@ -353,11 +425,15 @@ export class ChatRoom extends DurableObject {
         "messages"
       );
 
+
     if (
       !Array.isArray(data)
     ) {
+
       return [];
+
     }
+
 
     return data;
 
@@ -398,9 +474,7 @@ export class ChatRoom extends DurableObject {
   }
 
 
-  broadcast(
-    data
-  ) {
+  broadcast(data) {
 
     const payload =
       JSON.stringify(
